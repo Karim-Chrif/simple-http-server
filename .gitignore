@@ -15,7 +15,10 @@ pip-wheel-metadata/
 __pypackages__/
 *.egg-info/
 *.egg
-
+server.exe
+server.build
+server.dist
+server.onefile-build
 # Virtual environment
 venv/
 ENV/
