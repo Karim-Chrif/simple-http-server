@@ -13,7 +13,7 @@ This project provides a simple HTTP server implementation in Python. The server 
 1. **Clone the Repository**:
 
     ```sh
-    [git clone https://github.com/Karim-Chrif/simple-http-server.git
+    git clone https://github.com/Karim-Chrif/simple-http-server.git
     ```
 
 2. **Navigate to the Project Directory**:
