@@ -13,13 +13,13 @@ This project provides a simple HTTP server implementation in Python. The server 
 1. **Clone the Repository**:
 
     ```sh
-    git clone https://github.com/yourusername/simple-http-server.git
+    git clone https://github.com/yourusername/CaliAPI.git
     ```
 
 2. **Navigate to the Project Directory**:
 
     ```sh
-    cd simple-http-server
+    cd CaliAPI
     ```
 
 3. **Create a Virtual Environment** (optional but recommended):
