@@ -1,8 +1,27 @@
 import socket
 import signal
 import sys
+from datetime import datetime
 from request import Request
 from response import Response
+
+# Define status messages
+STATUS_MESSAGES = {
+    200: 'OK',
+    400: 'Bad Request',
+    403: 'Forbidden',
+    404: 'Not Found'
+}
+
+def log_message(message):
+    """
+    Logs a message with a timestamp.
+
+    Args:
+        message (str): The message to log.
+    """
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"[{timestamp}] {message}")
 
 class Server:
     """
@@ -14,9 +33,10 @@ class Server:
         sock (socket.socket): The socket object used for communication.
         running (bool): Flag indicating whether the server is running.
         routes (list): List of tuples containing HTTP method, path, and handler functions.
+        auth_handler (callable): Optional function to handle authorization checks.
     """
 
-    def __init__(self, routes, host='0.0.0.0', port=65432):
+    def __init__(self, routes, auth_handler=None, host='0.0.0.0', port=65432):
         """
         Initializes the server with the given routes, host, and port.
 
@@ -25,6 +45,7 @@ class Server:
                 - method (str): HTTP method (e.g., 'GET').
                 - path (str): URL path (e.g., '/').
                 - handler (callable): Function to handle requests matching this route.
+            auth_handler (callable, optional): Function to handle authorization checks (default is None).
             host (str): Host IP address to bind the server (default is '0.0.0.0').
             port (int): Port number to bind the server (default is 65432).
         """
@@ -34,6 +55,7 @@ class Server:
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.running = False
         self.routes = routes
+        self.auth_handler = auth_handler
 
     def signal_handler(self, sig, frame):
         """
@@ -43,7 +65,7 @@ class Server:
             sig (int): Signal number.
             frame (frame object): Current stack frame.
         """
-        print("\nKeyboardInterrupt detected. Shutting down...")
+        log_message("KeyboardInterrupt detected. Shutting down...")
         self.running = False
         self.shutdown()
         sys.exit(0)
@@ -54,7 +76,7 @@ class Server:
         """
         self.sock.bind((self.host, self.port))
         self.sock.listen()
-        print(f'Server started on {self.host}:{self.port}')
+        log_message(f'Server started on {self.host}:{self.port}')
         self.running = True
         signal.signal(signal.SIGINT, self.signal_handler)
         
@@ -62,22 +84,22 @@ class Server:
             try:
                 self.sock.settimeout(1.0)
                 conn, addr = self.sock.accept()
-                print('Connected by', addr)
-                self.handle_request(conn)
+                self.handle_request(conn, addr)
             except socket.timeout:
                 continue
             except Exception as e:
-                print(f"An error occurred: {e}")
+                log_message(f"An error occurred: {e}")
                 self.running = False
 
         self.shutdown()
 
-    def handle_request(self, conn):
+    def handle_request(self, conn, addr):
         """
         Handles a single incoming request by parsing it and routing it to the appropriate handler.
 
         Args:
             conn (socket.socket): The connection object to handle the request.
+            addr (tuple): The client IP address and port number.
         """
         with conn:
             try:
@@ -90,18 +112,28 @@ class Server:
             except ValueError:
                 response = Response(400, {'error': 'Invalid request format'})
                 self.send_response(conn, response)
+                log_message(f"Request from {addr[0]} for {request.path} resulted in 400 Bad Request")
                 return
 
+            # Authorization
+            if self.auth_handler and not self.auth_handler(request.headers):
+                response = Response(403, {'error': 'Forbidden'})
+                self.send_response(conn, response)
+                log_message(f"Request from {addr[0]} for {request.path} resulted in 403 Forbidden")
+                return
+            
             # Find matching route
             for route_method, route_path, handler in self.routes:
                 if request.method == route_method and request.path == route_path:
                     response = handler()
                     self.send_response(conn, response)
+                    log_message(f"Request from {addr[0]} for {request.path} resulted in {response.status_code} {STATUS_MESSAGES.get(response.status_code, 'Unknown')}")
                     return
             
             # If no route matches
             response = Response(404, {'error': 'Route not found'})
             self.send_response(conn, response)
+            log_message(f"Request from {addr[0]} for {request.path} resulted in 404 Not Found")
 
     def send_response(self, conn, response):
         """
@@ -122,7 +154,7 @@ class Server:
         """
         Shuts down the server by closing the socket.
         """
-        print("\nShutting down the server...")
+        log_message("Shutting down the server...")
         self.sock.close()
 
 def handle_root():
@@ -143,6 +175,18 @@ def handle_about():
     """
     return Response(200, {'message': 'This is the about page'})
 
+def custom_auth_handler(headers):
+    """
+    Example authorization handler that checks for the presence of the 'Authorization' header.
+
+    Args:
+        headers (list): List of request headers.
+
+    Returns:
+        bool: True if the 'Authorization' header is present, False otherwise.
+    """
+    return 'Authorization' in headers
+
 if __name__ == '__main__':
     """
     This block of code demonstrates how to use the Server class.
@@ -158,5 +202,5 @@ if __name__ == '__main__':
         ('GET', '/about', handle_about),
         # Add more routes here
     ]
-    server = Server(routes, host='0.0.0.0', port=65432)
+    server = Server(routes, auth_handler=custom_auth_handler, host='0.0.0.0', port=65432)
     server.start()
