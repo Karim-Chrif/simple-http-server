@@ -2,8 +2,10 @@ import socket
 import signal
 import sys
 from datetime import datetime
+from typing import Callable, List, Optional, Tuple
 from request import Request
 from response import Response
+from route import Route
 
 # Define status messages
 STATUS_MESSAGES = {
@@ -13,7 +15,7 @@ STATUS_MESSAGES = {
     404: 'Not Found'
 }
 
-def log_message(message):
+def log_message(message: str) -> None:
     """
     Logs a message with a timestamp.
 
@@ -32,20 +34,17 @@ class Server:
         port (int): The port number to bind the server.
         sock (socket.socket): The socket object used for communication.
         running (bool): Flag indicating whether the server is running.
-        routes (list): List of tuples containing HTTP method, path, and handler functions.
-        auth_handler (callable): Optional function to handle authorization checks.
+        routes (List[Route]): List of Route objects containing HTTP method, path, and handler functions.
+        auth_handler (Optional[Callable[[dict], bool]]): Optional function to handle authorization checks.
     """
 
-    def __init__(self, routes, auth_handler=None, host='0.0.0.0', port=65432):
+    def __init__(self, routes: List[Route], auth_handler: Optional[Callable[[dict], bool]] = None, host: str = '0.0.0.0', port: int = 65432):
         """
         Initializes the server with the given routes, host, and port.
 
         Args:
-            routes (list): List of tuples where each tuple contains:
-                - method (str): HTTP method (e.g., 'GET').
-                - path (str): URL path (e.g., '/').
-                - handler (callable): Function to handle requests matching this route.
-            auth_handler (callable, optional): Function to handle authorization checks (default is None).
+            routes (List[Route]): List of Route objects.
+            auth_handler (Optional[Callable[[dict], bool]]): Function to handle authorization checks (default is None).
             host (str): Host IP address to bind the server (default is '0.0.0.0').
             port (int): Port number to bind the server (default is 65432).
         """
@@ -57,20 +56,20 @@ class Server:
         self.routes = routes
         self.auth_handler = auth_handler
 
-    def signal_handler(self, sig, frame):
+    def signal_handler(self, sig: int, frame: any) -> None:
         """
         Handles the SIGINT signal (Ctrl+C) to gracefully shut down the server.
 
         Args:
             sig (int): Signal number.
-            frame (frame object): Current stack frame.
+            frame (signal.FrameType): Current stack frame.
         """
         log_message("KeyboardInterrupt detected. Shutting down...")
         self.running = False
         self.shutdown()
         sys.exit(0)
 
-    def start(self):
+    def start(self) -> None:
         """
         Starts the server, listens for incoming connections, and handles requests.
         """
@@ -93,13 +92,13 @@ class Server:
 
         self.shutdown()
 
-    def handle_request(self, conn, addr):
+    def handle_request(self, conn: socket.socket, addr: Tuple[str, int]) -> None:
         """
         Handles a single incoming request by parsing it and routing it to the appropriate handler.
 
         Args:
             conn (socket.socket): The connection object to handle the request.
-            addr (tuple): The client IP address and port number.
+            addr (Tuple[str, int]): The client IP address and port number.
         """
         with conn:
             try:
@@ -123,9 +122,9 @@ class Server:
                 return
             
             # Find matching route
-            for route_method, route_path, handler in self.routes:
-                if request.method == route_method and request.path == route_path:
-                    response = handler()
+            for route in self.routes:
+                if route.matches(request.method, request.path):
+                    response = route.handler()
                     self.send_response(conn, response)
                     log_message(f"Request from {addr[0]} for {request.path} resulted in {response.status_code} {STATUS_MESSAGES.get(response.status_code, 'Unknown')}")
                     return
@@ -135,7 +134,7 @@ class Server:
             self.send_response(conn, response)
             log_message(f"Request from {addr[0]} for {request.path} resulted in 404 Not Found")
 
-    def send_response(self, conn, response):
+    def send_response(self, conn: socket.socket, response: Response) -> None:
         """
         Sends an HTTP response to the client.
 
@@ -150,14 +149,14 @@ class Server:
             raise ValueError("Expected a Response object")
         conn.sendall(response.to_http_response().encode('utf-8'))
 
-    def shutdown(self):
+    def shutdown(self) -> None:
         """
         Shuts down the server by closing the socket.
         """
         log_message("Shutting down the server...")
         self.sock.close()
 
-def handle_root():
+def handle_root() -> Response:
     """
     Handles requests to the root path '/'.
 
@@ -166,7 +165,7 @@ def handle_root():
     """
     return Response(200, {'message': 'Hello, world!'})
 
-def handle_about():
+def handle_about() -> Response:
     """
     Handles requests to the '/about' path.
 
@@ -175,12 +174,12 @@ def handle_about():
     """
     return Response(200, {'message': 'This is the about page'})
 
-def custom_auth_handler(headers):
+def custom_auth_handler(headers: dict) -> bool:
     """
     Example authorization handler that checks for the presence of the 'Authorization' header.
 
     Args:
-        headers (list): List of request headers.
+        headers (dict): Dictionary of request headers.
 
     Returns:
         bool: True if the 'Authorization' header is present, False otherwise.
@@ -198,8 +197,8 @@ if __name__ == '__main__':
     The server will listen on all network interfaces (0.0.0.0) and port 65432.
     """
     routes = [
-        ('GET', '/', handle_root),
-        ('GET', '/about', handle_about),
+        Route('GET', '/', handle_root),
+        Route('GET', '/about', handle_about),
         # Add more routes here
     ]
     server = Server(routes, auth_handler=custom_auth_handler, host='0.0.0.0', port=65432)

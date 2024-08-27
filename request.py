@@ -1,3 +1,5 @@
+from typing import Dict, Optional
+
 class Request:
     """
     Represents an HTTP request.
@@ -5,27 +7,27 @@ class Request:
     Attributes:
         method (str): The HTTP method of the request (e.g., 'GET').
         path (str): The URL path of the request (e.g., '/').
-        headers (dict): The headers of the request.
-        body (dict): The body of the request.
+        headers (Dict[str, str]): The headers of the request.
+        body (Dict[str, str]): The body of the request.
     """
 
-    def __init__(self, method, path, headers=None, body=None):
+    def __init__(self, method: str, path: str, headers: Optional[Dict[str, str]] = None, body: Optional[Dict[str, str]] = None) -> None:
         """
         Initializes the Request object with method, path, headers, and body.
 
         Args:
             method (str): The HTTP method of the request.
             path (str): The URL path of the request.
-            headers (dict, optional): The headers of the request (default is an empty dictionary).
-            body (dict, optional): The body of the request (default is an empty dictionary).
+            headers (Optional[Dict[str, str]]): The headers of the request (default is an empty dictionary).
+            body (Optional[Dict[str, str]]): The body of the request (default is an empty dictionary).
         """
-        self.method = method
-        self.path = path
-        self.headers = headers or {}
-        self.body = body or {}
+        self.method: str = method
+        self.path: str = path
+        self.headers: Dict[str, str] = headers or {}
+        self.body: Dict[str, str] = body or {}
 
     @classmethod
-    def from_raw(cls, raw_data):
+    def from_raw(cls, raw_data: str) -> 'Request':
         """
         Creates a Request object from raw HTTP request data.
 
@@ -40,7 +42,7 @@ class Request:
             request_line, *header_lines = headers.split('\r\n')
             method, path, _ = request_line.split()
             
-            header_dict = {}
+            header_dict: Dict[str, str] = {}
             for line in header_lines:
                 if ': ' in line:
                     key, value = line.split(': ', 1)
