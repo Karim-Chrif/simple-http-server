@@ -1,3 +1,4 @@
+import json
 import socket
 import signal
 import sys
@@ -105,9 +106,14 @@ class Server:
                 data = conn.recv(1024).decode()
                 if not data:
                     return
-
+                
                 request = Request.from_raw(data)
 
+                if 'Content-Type' in request.headers and request.headers['Content-Type'] != 'application/json':
+                    response = Response(400, {'error': 'Invalid Content-Type'})
+                    self.send_response(conn, response)
+                    log_message(f"Request from {addr[0]} for {request.path} resulted in 400 Bad Request")
+                    return                    
             except ValueError:
                 response = Response(400, {'error': 'Invalid request format'})
                 self.send_response(conn, response)
@@ -124,7 +130,7 @@ class Server:
             # Find matching route
             for route in self.routes:
                 if route.matches(request.method, request.path):
-                    response = route.handler()
+                    response = route.handler(request)
                     self.send_response(conn, response)
                     log_message(f"Request from {addr[0]} for {request.path} resulted in {response.status_code} {STATUS_MESSAGES.get(response.status_code, 'Unknown')}")
                     return
@@ -156,16 +162,16 @@ class Server:
         log_message("Shutting down the server...")
         self.sock.close()
 
-def handle_root() -> Response:
+def handle_root(request:Request) -> Response:
     """
     Handles requests to the root path '/'.
 
     Returns:
         Response: A Response object with status code 200 and a message.
     """
-    return Response(200, {'message': 'Hello, world!'})
+    return Response(200, {'message': 'Hello, world!','body':request.body})
 
-def handle_about() -> Response:
+def handle_about(request:Request) -> Response:
     """
     Handles requests to the '/about' path.
 

@@ -1,3 +1,5 @@
+from json import JSONDecodeError
+import json
 from typing import Dict, Optional
 
 class Request:
@@ -48,6 +50,11 @@ class Request:
                     key, value = line.split(': ', 1)
                     header_dict[key] = value
             
+            body=json.loads(body)
             return cls(method, path, header_dict, body)
+        
+        except JSONDecodeError:
+            return cls(method, path, header_dict, body)
+
         except ValueError:
             return cls('', '', {}, '')
